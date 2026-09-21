@@ -48,6 +48,30 @@ describe("trainer engine", () => {
     expect(result.state.status).toBe("completed");
   });
 
+  it("automatically inserts the next line indentation after Enter", () => {
+    let state = createTrainerState("{\n    printf();\n}");
+    state = applyKey(state, "{").state;
+    state = applyKey(state, "Enter").state;
+
+    expect(state.cursor).toBe(6);
+    expect(state.target[state.cursor]).toBe("p");
+    expect(state.completedCharacters).toBe(6);
+    expect(state.correctActions).toBe(2);
+  });
+
+  it("does not skip an intentional blank line when applying indentation", () => {
+    let state = createTrainerState("a\n\n    b");
+    state = applyKey(state, "a").state;
+    state = applyKey(state, "Enter").state;
+
+    expect(state.cursor).toBe(2);
+    expect(state.target[state.cursor]).toBe("\n");
+
+    state = applyKey(state, "Enter").state;
+    expect(state.cursor).toBe(7);
+    expect(state.target[state.cursor]).toBe("b");
+  });
+
   it("auto-completes an empty pair", () => {
     const result = applyKey(createTrainerState("printf();"), "p");
     let state = result.state;

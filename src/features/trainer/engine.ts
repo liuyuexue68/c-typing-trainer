@@ -79,6 +79,14 @@ function advancePastAutoPairs(cursor: number, autoPairHints: number[]) {
   };
 }
 
+function advancePastIndentation(target: string, cursor: number, key: string) {
+  if (key !== "Enter") return cursor;
+
+  let nextCursor = cursor;
+  while (target[nextCursor] === " ") nextCursor += 1;
+  return nextCursor;
+}
+
 export function pauseTrainer(state: TrainerState): TrainerState {
   return state.status === "active" ? { ...state, status: "paused" } : state;
 }
@@ -124,11 +132,12 @@ export function applyKey(state: TrainerState, key: string): EngineResult {
 
   const advance = key === "Tab" ? 4 : 1;
   const typedCursor = state.cursor + advance;
+  const indentedCursor = advancePastIndentation(state.target, typedCursor, key);
   const hintIndex = key !== "Tab" ? findClosingIndex(state.target, state.cursor, produced) : -1;
   const nextHints = hintIndex > state.cursor && !state.autoPairHints.includes(hintIndex)
     ? [...state.autoPairHints, hintIndex]
     : state.autoPairHints;
-  const autoCompleted = advancePastAutoPairs(typedCursor, nextHints);
+  const autoCompleted = advancePastAutoPairs(indentedCursor, nextHints);
   const nextCursor = autoCompleted.cursor;
   const completed = nextCursor >= state.target.length;
 
