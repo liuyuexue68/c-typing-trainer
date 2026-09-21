@@ -48,14 +48,52 @@ describe("trainer engine", () => {
     expect(result.state.status).toBe("completed");
   });
 
-  it("creates an auto-pair hint without completing the closer", () => {
+  it("auto-completes an empty pair", () => {
     const result = applyKey(createTrainerState("printf();"), "p");
     let state = result.state;
     for (const key of "rintf") state = applyKey(state, key).state;
     state = applyKey(state, "(").state;
-    expect(state.autoPairHints).toContain(7);
-    expect(state.cursor).toBe(7);
-    expect(state.target[state.cursor]).toBe(")");
+    expect(state.autoPairHints).not.toContain(7);
+    expect(state.cursor).toBe(8);
+    expect(state.completedCharacters).toBe(8);
+    expect(state.target[state.cursor]).toBe(";");
+  });
+
+  it.each([
+    ["()", "("],
+    ["{}", "{"],
+    ["[]", "["],
+    ["\"\"", "\""],
+  ])("automatically types the closer for %s", (target, opener) => {
+    const state = applyKey(createTrainerState(target), opener).state;
+    expect(state.cursor).toBe(target.length);
+    expect(state.completedCharacters).toBe(target.length);
+    expect(state.correctActions).toBe(1);
+    expect(state.status).toBe("completed");
+  });
+
+  it("keeps the caret inside a non-empty pair and skips the closer later", () => {
+    let state = applyKey(createTrainerState("(abc)"), "(").state;
+    expect(state.cursor).toBe(1);
+    expect(state.autoPairHints).toContain(4);
+
+    for (const key of "abc") state = applyKey(state, key).state;
+
+    expect(state.cursor).toBe(5);
+    expect(state.completedCharacters).toBe(5);
+    expect(state.correctActions).toBe(4);
+    expect(state.autoPairHints).toHaveLength(0);
+    expect(state.status).toBe("completed");
+  });
+
+  it("automatically closes nested pairs in the correct order", () => {
+    let state = createTrainerState("([x])");
+    for (const key of "([x") state = applyKey(state, key).state;
+
+    expect(state.cursor).toBe(5);
+    expect(state.completedCharacters).toBe(5);
+    expect(state.correctActions).toBe(3);
+    expect(state.status).toBe("completed");
   });
 
   it("only hints angle brackets in include context", () => {
@@ -75,7 +113,7 @@ describe("trainer engine", () => {
     state = applyKey(state, "\"").state;
     expect(state.autoPairHints).toContain(2);
     state = applyKey(state, "x").state;
-    state = applyKey(state, "\"").state;
+    expect(state.cursor).toBe(3);
     expect(state.autoPairHints).not.toContain(4);
   });
 

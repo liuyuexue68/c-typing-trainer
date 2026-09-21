@@ -67,6 +67,18 @@ function findClosingIndex(target: string, cursor: number, opener: string) {
   return -1;
 }
 
+function advancePastAutoPairs(cursor: number, autoPairHints: number[]) {
+  let nextCursor = cursor;
+  const pendingPairs = new Set(autoPairHints);
+
+  while (pendingPairs.delete(nextCursor)) nextCursor += 1;
+
+  return {
+    cursor: nextCursor,
+    autoPairHints: autoPairHints.filter((index) => pendingPairs.has(index)),
+  };
+}
+
 export function pauseTrainer(state: TrainerState): TrainerState {
   return state.status === "active" ? { ...state, status: "paused" } : state;
 }
@@ -111,11 +123,13 @@ export function applyKey(state: TrainerState, key: string): EngineResult {
   }
 
   const advance = key === "Tab" ? 4 : 1;
-  const nextCursor = state.cursor + advance;
+  const typedCursor = state.cursor + advance;
   const hintIndex = key !== "Tab" ? findClosingIndex(state.target, state.cursor, produced) : -1;
   const nextHints = hintIndex > state.cursor && !state.autoPairHints.includes(hintIndex)
     ? [...state.autoPairHints, hintIndex]
     : state.autoPairHints;
+  const autoCompleted = advancePastAutoPairs(typedCursor, nextHints);
+  const nextCursor = autoCompleted.cursor;
   const completed = nextCursor >= state.target.length;
 
   return {
@@ -124,8 +138,8 @@ export function applyKey(state: TrainerState, key: string): EngineResult {
       ...state,
       cursor: nextCursor,
       correctActions: state.correctActions + 1,
-      completedCharacters: state.completedCharacters + advance,
-      autoPairHints: nextHints.filter((index) => index >= nextCursor),
+      completedCharacters: state.completedCharacters + advance + (nextCursor - typedCursor),
+      autoPairHints: autoCompleted.autoPairHints,
       status: completed ? "completed" : "active",
     },
   };
